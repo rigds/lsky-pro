@@ -105,7 +105,27 @@
                             <div class="col-span-6">
                                 <x-fieldset title="允许上传的图片类型">
                                     @foreach($default['accepted_file_suffixes'] as $extension)
-                                        <x-fieldset-checkbox id="configs[accepted_file_suffixes]_{{ $extension }}" name="configs[accepted_file_suffixes][]" value="{{ $extension }}" :checked="in_array($extension, $group->configs->get('accepted_file_suffixes'))">
+                                        <x-fieldset-checkbox id="configs[accepted_file_suffixes]_{{ $extension }}" name="configs[accepted_file_suffixes][]" value="{{ $extension }}" :checked="in_array($extension, (array) $group->configs->get('accepted_file_suffixes'))">
+                                            {{ strtoupper($extension) }}
+                                        </x-fieldset-checkbox>
+                                    @endforeach
+                                </x-fieldset>
+                            </div>
+
+                            <div class="col-span-6">
+                                <x-fieldset title="允许上传的视频类型" faq="勾选后该角色组可上传对应格式的视频，视频不会进行格式转换与水印处理。">
+                                    @foreach($default['accepted_video_suffixes'] ?? [] as $extension)
+                                        <x-fieldset-checkbox id="configs[accepted_video_suffixes]_{{ $extension }}" name="configs[accepted_video_suffixes][]" value="{{ $extension }}" :checked="in_array($extension, (array) $group->configs->get('accepted_video_suffixes', $default['accepted_video_suffixes'] ?? []))">
+                                            {{ strtoupper($extension) }}
+                                        </x-fieldset-checkbox>
+                                    @endforeach
+                                </x-fieldset>
+                            </div>
+
+                            <div class="col-span-6">
+                                <x-fieldset title="允许上传的其他文件类型" faq="勾选后该角色组可上传文档、压缩包、音频等非图片非视频文件。">
+                                    @foreach($default['accepted_other_file_suffixes'] ?? [] as $extension)
+                                        <x-fieldset-checkbox id="configs[accepted_other_file_suffixes]_{{ $extension }}" name="configs[accepted_other_file_suffixes][]" value="{{ $extension }}" :checked="in_array($extension, (array) $group->configs->get('accepted_other_file_suffixes', $default['accepted_other_file_suffixes'] ?? []))">
                                             {{ strtoupper($extension) }}
                                         </x-fieldset-checkbox>
                                     @endforeach

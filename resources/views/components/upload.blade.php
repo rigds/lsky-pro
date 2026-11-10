@@ -1,18 +1,22 @@
 <div class="pb-6 h-full">
-    <input type="file" id="picker" name="file" class="hidden" accept="{{ implode(',', array_map(fn ($ext) => '.'.$ext, $_group->configs->get(\App\Enums\GroupConfigKey::AcceptedFileSuffixes))) }}" multiple>
+    <input type="file" id="picker" name="file" class="hidden" accept="{{ implode(',', array_map(fn ($ext) => '.'.$ext, array_unique(array_merge(
+        (array) $_group->configs->get(\App\Enums\GroupConfigKey::AcceptedFileSuffixes),
+        (array) $_group->configs->get(\App\Enums\GroupConfigKey::AcceptedVideoSuffixes),
+        (array) $_group->configs->get(\App\Enums\GroupConfigKey::AcceptedOtherFileSuffixes),
+    )))) }}" multiple>
 
     <div class="mb-4 p-4 bg-white rounded-md shadow-custom">
-        <h1 class="tracking-wider text-2xl text-gray-700 mb-2" style="text-shadow: -4px 4px 0 rgb(0 0 0 / 10%);">Image Upload</h1>
+        <h1 class="tracking-wider text-2xl text-gray-700 mb-2" style="text-shadow: -4px 4px 0 rgb(0 0 0 / 10%);">Image / Video / File Upload</h1>
         <p class="text-gray-500 text-sm">
-            最大可上传 {{ \App\Utils::formatSize($_group->configs->get(\App\Enums\GroupConfigKey::MaximumFileSize) * 1024) }} 的图片，上传队列最多
+            最大可上传 {{ \App\Utils::formatSize($_group->configs->get(\App\Enums\GroupConfigKey::MaximumFileSize) * 1024) }} 的文件，上传队列最多
             {{ $_group->configs->get(\App\Enums\GroupConfigKey::ConcurrentUploadNum) }}
-            张。本站已托管 {{ \App\Models\Image::query()->count() }} 张图片。
+            张。本站已托管 {{ \App\Models\Image::query()->count() }} 个文件。
         </p>
         <div class="mt-3 rounded-md border-2 border-dotted border-stone-300 w-full h-full" id="picker-dnd" onclick="$('#picker').click()">
             <div id="upload-container" class="relative group flex flex-col justify-center items-center p-2 w-full h-full min-h-[150px] sm:min-h-[340px] space-y-4 text-gray-500 cursor-pointer">
                 <i id="clear" class="fas fa-times absolute top-1 right-1 w-8 h-8 flex justify-center items-center cursor-pointer text-xl text-center hidden group-hover:block text-gray-400 hover:text-gray-500"></i>
                 <p id="upload-all" title="点我上传全部"><i class="fas fa-cloud-upload-alt text-6xl hover:text-indigo-400"></i></p>
-                <p class="text-md text-center">拖拽文件到这里，支持多文件同时上传<br/>点击上面的图标上传全部已选择文件</p>
+                <p class="text-md text-center">拖拽图片 / 视频 / 文件到这里，支持多文件同时上传<br/>点击上面的图标上传全部已选择文件</p>
             </div>
             <div id="upload-preview" class="flex m-2 hidden"></div>
         </div>
@@ -79,7 +83,10 @@
 @endpush
 @push('scripts')
     <script>
-        let allowSuffixes = @json($_group->configs->get(\App\Enums\GroupConfigKey::AcceptedFileSuffixes));
+        let imageSuffixes = @json($_group->configs->get(\App\Enums\GroupConfigKey::AcceptedFileSuffixes));
+        let videoSuffixes = @json($_group->configs->get(\App\Enums\GroupConfigKey::AcceptedVideoSuffixes));
+        let otherFileSuffixes = @json($_group->configs->get(\App\Enums\GroupConfigKey::AcceptedOtherFileSuffixes));
+        let allowSuffixes = [].concat(imageSuffixes, videoSuffixes, otherFileSuffixes);
         let maxSize = {{ $_group->configs->get(\App\Enums\GroupConfigKey::MaximumFileSize) * 1024 }};
         let pastedAction = '{{ Auth::check() ? Auth::user()->configs->get(\App\Enums\UserConfigKey::PastedAction) : \App\Enums\PastedAction::Waiting }}';
     </script>
@@ -116,6 +123,61 @@
         let $picker = $('#picker');
         let queue = []; // 文件队列
         let excludes = ['psd', 'tif']; // 排除支持预览的格式
+        /**
+         * 根据后缀返回文件类型图标（SVG Data URL）
+         * @param ext
+         * @returns {string}
+         */
+        const fileIcon = (ext) => {
+            let color = '#6b7280';
+            if (otherFileSuffixes.indexOf(ext) === -1 && excludes.indexOf(ext) === -1) color = color;
+            let text = (ext || 'file').substring(0, 4).toUpperCase();
+            let svg = '<svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80">'
+                + '<rect width="80" height="80" fill="#e5e7eb"/>'
+                + '<path d="M26 14h20l12 12v40a2 2 0 0 1-2 2H26a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2z" fill="#ffffff" stroke="#9ca3af" stroke-width="2"/>'
+                + '<path d="M46 14v12h12" fill="none" stroke="#9ca3af" stroke-width="2"/>'
+                + '<text x="40" y="58" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="bold" fill="' + color + '" text-anchor="middle">' + text + '</text>'
+                + '</svg>';
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        };
+        /**
+         * 截取视频第一帧作为预览图
+         * @param file
+         * @param callback
+         */
+        const videoThumb = (file, callback) => {
+            let url = URL.createObjectURL(file);
+            let video = document.createElement('video');
+            let done = false;
+            const finish = (blob) => {
+                if (done) return;
+                done = true;
+                URL.revokeObjectURL(url);
+                callback(blob);
+            };
+            video.muted = true;
+            video.playsInline = true;
+            video.preload = 'metadata';
+            video.src = url;
+            video.onloadeddata = () => {
+                try { video.currentTime = Math.min(1, (video.duration || 1) / 2); } catch (e) { finish(null); }
+            };
+            video.onseeked = () => {
+                try {
+                    let canvas = document.createElement('canvas');
+                    let scale = Math.min(200 / video.videoWidth, 200 / video.videoHeight, 1) || 1;
+                    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+                    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                    finish(canvas.toDataURL('image/jpeg', 0.7));
+                } catch (e) {
+                    finish(null);
+                }
+            };
+            video.onerror = () => finish(null);
+            // 3 秒超时兜底
+            setTimeout(() => finish(null), 3000);
+        };
         /**
          * 设置状态
          * @param data
@@ -171,12 +233,13 @@
             add: (e, data) => { // Return true to continue adding, otherwise terminate
                 let file = data.files[0];
                 let ext = file.name.substr(file.name.lastIndexOf('.') + 1);
-                if (allowSuffixes.indexOf(ext.toLowerCase()) === -1) {
-                    toastr.warning(`不支持的图片格式 ${file.name}`);
+                let lowerExt = ext.toLowerCase();
+                if (allowSuffixes.indexOf(lowerExt) === -1) {
+                    toastr.warning(`不支持的格式 ${file.name}`);
                     return true;
                 }
                 if (file.size > maxSize) {
-                    toastr.warning(`图片 ${file.name} 超出大小限制`);
+                    toastr.warning(`文件 ${file.name} 超出大小限制`);
                     return true;
                 }
                 let guid = utils.guid();
@@ -200,8 +263,12 @@
                     }
                 };
 
-                if (excludes.indexOf(file.name.substring(file.name.lastIndexOf(".") + 1).toLowerCase()) !== -1) {
-                    push('data:image/png;base64,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');
+                // 其他文件：使用类型图标
+                if (otherFileSuffixes.indexOf(lowerExt) !== -1 || excludes.indexOf(lowerExt) !== -1) {
+                    push(fileIcon(lowerExt));
+                } else if (videoSuffixes.indexOf(lowerExt) !== -1) {
+                    // 视频：异步截取第一帧作为预览
+                    videoThumb(file, (blob) => push(blob || fileIcon(lowerExt)));
                 } else {
                     loadImage(file, function (img) {
                             if (img.type === 'error') {

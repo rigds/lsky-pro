@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\GroupConfigKey;
 use App\Enums\ImagePermission;
+use App\Enums\ImageType;
 use App\Services\ImageService;
 use App\Utils;
 use Illuminate\Support\Carbon;
@@ -33,6 +34,7 @@ use League\Flysystem\Filesystem;
  * @property float $size
  * @property string $mimetype
  * @property string $extension
+ * @property int $type
  * @property string $md5
  * @property string $sha1
  * @property integer $width
@@ -63,6 +65,7 @@ class Image extends Model
         'size',
         'mimetype',
         'extension',
+        'type',
         'md5',
         'sha1',
         'width',
@@ -87,6 +90,7 @@ class Image extends Model
         'strategy_id' => 'integer',
         'width' => 'integer',
         'height' => 'integer',
+        'type' => 'integer',
         'size' => 'float',
         'is_unhealthy' => 'bool',
         'permission' => 'integer',
@@ -200,14 +204,42 @@ class Image extends Model
 
     public function links(): Attribute
     {
-        return new Attribute(fn() => collect([
-            'url' => $this->url,
-            'html' => "&lt;img src=\"{$this->url}\" alt=\"{$this->origin_name}\" title=\"{$this->origin_name}\" /&gt;",
-            'bbcode' => "[img]{$this->url}[/img]",
-            'markdown' => "![{$this->origin_name}]({$this->url})",
-            'markdown_with_link' => "[![{$this->origin_name}]({$this->url})]({$this->url})",
-            'thumbnail_url' => $this->thumb_url,
-        ]));
+        return new Attribute(function () {
+            $url = $this->url;
+            $name = $this->origin_name;
+
+            // 视频与其他文件使用不同的分享格式
+            if ($this->type === ImageType::Video) {
+                return collect([
+                    'url' => $url,
+                    'html' => "&lt;video src=\"{$url}\" controls muted preload=\"metadata\"&gt;&lt;/video&gt;",
+                    'bbcode' => "[video]{$url}[/video]",
+                    'markdown' => "[{$name}]({$url})",
+                    'markdown_with_link' => "[{$name}]({$url})",
+                    'thumbnail_url' => $this->thumb_url,
+                ]);
+            }
+
+            if ($this->type === ImageType::File) {
+                return collect([
+                    'url' => $url,
+                    'html' => "&lt;a href=\"{$url}\" target=\"_blank\"&gt;{$name}&lt;/a&gt;",
+                    'bbcode' => "[url={$url}]{$name}[/url]",
+                    'markdown' => "[{$name}]({$url})",
+                    'markdown_with_link' => "[{$name}]({$url})",
+                    'thumbnail_url' => $this->thumb_url,
+                ]);
+            }
+
+            return collect([
+                'url' => $url,
+                'html' => "&lt;img src=\"{$url}\" alt=\"{$name}\" title=\"{$name}\" /&gt;",
+                'bbcode' => "[img]{$url}[/img]",
+                'markdown' => "![{$name}]({$url})",
+                'markdown_with_link' => "[![{$name}]({$url})]({$url})",
+                'thumbnail_url' => $this->thumb_url,
+            ]);
+        });
     }
 
     public function filesystem(): Filesystem
@@ -236,6 +268,36 @@ class Image extends Model
     public function strategy(): BelongsTo
     {
         return $this->belongsTo(Strategy::class, 'strategy_id', 'id');
+    }
+
+    public function scopeImage(Builder $builder): Builder
+    {
+        return $builder->where('type', ImageType::Image);
+    }
+
+    public function scopeVideo(Builder $builder): Builder
+    {
+        return $builder->where('type', ImageType::Video);
+    }
+
+    public function scopeFile(Builder $builder): Builder
+    {
+        return $builder->where('type', ImageType::File);
+    }
+
+    public function isImage(): bool
+    {
+        return $this->type === ImageType::Image;
+    }
+
+    public function isVideo(): bool
+    {
+        return $this->type === ImageType::Video;
+    }
+
+    public function isFile(): bool
+    {
+        return $this->type === ImageType::File;
     }
 
     public function getThumbnailPathname(): string

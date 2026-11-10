@@ -115,6 +115,26 @@
                                     @endforeach
                                 </x-fieldset>
                             </div>
+
+                            <div class="col-span-6">
+                                <x-fieldset title="允许上传的视频类型">
+                                    @foreach($default->get('accepted_video_suffixes') as $extension)
+                                        <x-fieldset-checkbox id="configs[accepted_video_suffixes]_{{ $extension }}" name="configs[accepted_video_suffixes][]" value="{{ $extension }}" checked>
+                                            {{ strtoupper($extension) }}
+                                        </x-fieldset-checkbox>
+                                    @endforeach
+                                </x-fieldset>
+                            </div>
+
+                            <div class="col-span-6">
+                                <x-fieldset title="允许上传的其他文件类型">
+                                    @foreach($default->get('accepted_other_file_suffixes') as $extension)
+                                        <x-fieldset-checkbox id="configs[accepted_other_file_suffixes]_{{ $extension }}" name="configs[accepted_other_file_suffixes][]" value="{{ $extension }}" checked>
+                                            {{ strtoupper($extension) }}
+                                        </x-fieldset-checkbox>
+                                    @endforeach
+                                </x-fieldset>
+                            </div>
                         </div>
 
                         <div data-tab="review" class="hidden grid grid-cols-6 gap-6">

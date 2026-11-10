@@ -86,6 +86,14 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth.admin']], function () 
         Route::delete('{id}', [AdminImageController::class, 'delete'])->name('admin.image.delete');
     });
 
+    Route::group(['prefix' => 'videos'], function () {
+        Route::get('', [AdminImageController::class, 'videos'])->name('admin.videos');
+    });
+
+    Route::group(['prefix' => 'files'], function () {
+        Route::get('', [AdminImageController::class, 'files'])->name('admin.files');
+    });
+
     Route::group(['prefix' => 'groups'], function () {
         Route::get('', [AdminGroupController::class, 'index'])->name('admin.groups');
         Route::get('create', [AdminGroupController::class, 'add'])->name('admin.group.add');

@@ -66,6 +66,14 @@
                     <x-slot name="icon"><i class="fas fa-images text-blue-500"></i></x-slot>
                     <x-slot name="name">图片管理</x-slot>
                 </x-nav-link>
+                <x-nav-link :href="route('admin.videos')" :active="request()->is('admin/videos*')">
+                    <x-slot name="icon"><i class="fas fa-video text-blue-500"></i></x-slot>
+                    <x-slot name="name">视频管理</x-slot>
+                </x-nav-link>
+                <x-nav-link :href="route('admin.files')" :active="request()->is('admin/files*')">
+                    <x-slot name="icon"><i class="fas fa-file-alt text-blue-500"></i></x-slot>
+                    <x-slot name="name">文件管理</x-slot>
+                </x-nav-link>
                 <x-nav-link :href="route('admin.strategies')" :active="request()->is('admin/strategies*')">
                     <x-slot name="icon"><i class="fas fa-hdd text-blue-500"></i></x-slot>
                     <x-slot name="name">储存策略</x-slot>

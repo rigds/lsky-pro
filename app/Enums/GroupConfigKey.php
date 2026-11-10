@@ -43,8 +43,14 @@ final class GroupConfigKey
     /** @var string 每月上传数量限制 */
     const LimitPerMonth = 'limit_per_month';
 
-    /** @var string 允许上传的文件后缀 */
+    /** @var string 允许上传的图片后缀 */
     const AcceptedFileSuffixes = 'accepted_file_suffixes';
+
+    /** @var string 允许上传的视频后缀 */
+    const AcceptedVideoSuffixes = 'accepted_video_suffixes';
+
+    /** @var string 允许上传的其他文件后缀 */
+    const AcceptedOtherFileSuffixes = 'accepted_other_file_suffixes';
 
     /** @var string 路径命名规则 */
     const PathNamingRule = 'path_naming_rule';

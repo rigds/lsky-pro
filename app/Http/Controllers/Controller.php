@@ -152,6 +152,11 @@ class Controller extends BaseController
         if (! $image->group?->configs->get(GroupConfigKey::IsEnableOriginalProtection)) {
             abort(404);
         }
+        // 视频与其他文件：直接流式输出原文件，支持 Range，不做缓存、水印与格式转换
+        if (! $image->isImage()) {
+            return $this->outputRaw($image, $request);
+        }
+
         try {
             $cacheKey = "image_{$image->key}";
 
@@ -201,5 +206,84 @@ class Controller extends BaseController
         return \response()->stream(function () use ($contents) {
             echo $contents;
         }, headers: ['Content-type' => $mimetype]);
+    }
+
+    /**
+     * 流式输出视频或其他文件，支持 HTTP Range 请求（视频拖动进度条必需）
+     *
+     * @param  Image  $image
+     * @param  Request  $request
+     * @return \Symfony\Component\HttpFoundation\StreamedResponse|\Illuminate\Http\Response
+     */
+    protected function outputRaw(Image $image, Request $request)
+    {
+        try {
+            $stream = $image->filesystem()->readStream($image->pathname);
+            $size = (int) $image->filesystem()->fileSize($image->pathname);
+        } catch (\Throwable $e) {
+            Utils::e($e, '输出文件时出现异常');
+            abort(404);
+        }
+
+        if (! is_resource($stream)) {
+            abort(404);
+        }
+
+        $start = 0;
+        $end = $size - 1;
+
+        $range = $request->header('Range');
+        if ($range && preg_match('/bytes=(\d*)-(\d*)/', $range, $matches)) {
+            $start = $matches[1] === '' ? 0 : (int) $matches[1];
+            $end = $matches[2] === '' ? $size - 1 : (int) $matches[2];
+            if ($start > $end || $start >= $size) {
+                fclose($stream);
+                return response('', 416, ['Content-Range' => "bytes */{$size}"]);
+            }
+            $end = min($end, $size - 1);
+        }
+
+        $length = $end - $start + 1;
+
+        // 定位到起始位置
+        if ($start > 0) {
+            fseek($stream, $start);
+        }
+
+        $filename = $image->filename;
+        $disposition = ($request->query('download') !== null)
+            ? 'attachment; filename*=UTF-8\'\'' . rawurlencode($filename)
+            : 'inline; filename*=UTF-8\'\'' . rawurlencode($filename);
+
+        $headers = [
+            'Content-Type' => $image->mimetype ?: 'application/octet-stream',
+            'Content-Disposition' => $disposition,
+            'Accept-Ranges' => 'bytes',
+            'Content-Length' => $length,
+            'Cache-Control' => 'public, max-age=2628000',
+        ];
+
+        if ($range) {
+            $headers['Content-Range'] = "bytes {$start}-{$end}/{$size}";
+        }
+
+        $status = $range ? 206 : 200;
+
+        return response()->stream(function () use ($stream, $length) {
+            $remaining = $length;
+            while ($remaining > 0 && ! feof($stream)) {
+                $chunk = fread($stream, min(1024 * 64, $remaining));
+                if ($chunk === false) {
+                    break;
+                }
+                echo $chunk;
+                $remaining -= strlen($chunk);
+                @ob_flush();
+                flush();
+            }
+            if (is_resource($stream)) {
+                fclose($stream);
+            }
+        }, $status, $headers);
     }
 }

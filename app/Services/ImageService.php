@@ -7,6 +7,7 @@ use AlibabaCloud\Green\Green;
 use App\Enums\ConfigKey;
 use App\Enums\GroupConfigKey;
 use App\Enums\ImagePermission;
+use App\Enums\ImageType;
 use App\Enums\Scan\AliyunOption;
 use App\Enums\Scan\NsfwJsOption;
 use App\Enums\Scan\TencentOption;
@@ -98,12 +99,24 @@ class ImageService
 
         $extension = strtolower($file->getClientOriginalExtension());
 
-        if (! in_array($extension, $configs->get(GroupConfigKey::AcceptedFileSuffixes))) {
+        // 文件类型：图片 / 视频 / 其他文件
+        $type = ImageType::fromExtension($extension);
+
+        // 各类型使用角色组中允许的后缀白名单
+        $allowedSuffixes = match ($type) {
+            ImageType::Video => $configs->get(GroupConfigKey::AcceptedVideoSuffixes)
+                ?? config('convention.group.' . GroupConfigKey::AcceptedVideoSuffixes),
+            ImageType::File => $configs->get(GroupConfigKey::AcceptedOtherFileSuffixes)
+                ?? config('convention.group.' . GroupConfigKey::AcceptedOtherFileSuffixes),
+            default => $configs->get(GroupConfigKey::AcceptedFileSuffixes),
+        };
+
+        if (! in_array($extension, (array) $allowedSuffixes)) {
             throw new UploadException('不支持的文件类型');
         }
 
         if ($file->getSize() / 1024 > $configs->get(GroupConfigKey::MaximumFileSize)) {
-            throw new UploadException("图片大小超出限制");
+            throw new UploadException("文件大小超出限制");
         }
 
         // 图片所属组
@@ -151,8 +164,8 @@ class ImageService
         // 上传频率限制
         $this->rateLimiter($configs, $request);
 
-        // 图片处理，跳过 ico gif svg
-        if (! in_array($extension, ['ico', 'gif', 'svg'])) {
+        // 图片处理，仅对图片类型生效，且跳过 ico gif svg；视频与其他文件不做转换与水印
+        if ($type === ImageType::Image && ! in_array($extension, ['ico', 'gif', 'svg'])) {
             // 图片保存质量与格式
             $quality = $configs->get(GroupConfigKey::ImageSaveQuality, 75);
             $format = $configs->get(GroupConfigKey::ImageSaveFormat);
@@ -184,7 +197,12 @@ class ImageService
         );
         $pathname = $filename.".{$extension}";
 
-        [$width, $height] = @getimagesize($file->getRealPath()) ?: [400, 400];
+        // 仅图片解析宽高，视频与其他文件获取失败时置 0
+        if ($type === ImageType::Image) {
+            [$width, $height] = @getimagesize($file->getRealPath()) ?: [400, 400];
+        } else {
+            [$width, $height] = [0, 0];
+        }
 
         $image->fill([
             'md5' => md5_file($file->getRealPath()),
@@ -195,6 +213,7 @@ class ImageService
             'size' => $file->getSize() / 1024,
             'mimetype' => $file->getMimeType(),
             'extension' => strtolower($extension),
+            'type' => $type,
             'width' => $width,
             'height' => $height,
             'is_unhealthy' => false,
@@ -245,8 +264,12 @@ class ImageService
             throw new UploadException('图片记录保存失败');
         }
 
-        // 图片检测，跳过 tif、ico、psd、svg 格式
-        if ($configs->get(GroupConfigKey::IsEnableScan) && ! in_array($extension, ['psd', 'ico', 'tif', 'svg'])) {
+        // 图片检测，仅图片类型检测，跳过 tif、ico、psd、svg 格式
+        if (
+            $type === ImageType::Image &&
+            $configs->get(GroupConfigKey::IsEnableScan) &&
+            ! in_array($extension, ['psd', 'ico', 'tif', 'svg'])
+        ) {
             $scanConfigs = $configs->get(GroupConfigKey::ScanConfigs);
             if ($this->scan(
                 driver: $scanConfigs['driver'],
@@ -550,11 +573,22 @@ class ImageService
     {
         $pathname = public_path($image->getThumbnailPathname());
 
+        // 非图片非视频（其他文件）不生成缩略图
+        if ($image->type === ImageType::File) {
+            return;
+        }
+
         if (! file_exists($pathname) || $force) {
             try {
                 // 创建文件夹
                 if (! is_dir(dirname($pathname))) {
                     @mkdir(dirname($pathname));
+                }
+
+                // 视频使用 ffmpeg 截取第一帧作为封面
+                if ($image->type === ImageType::Video) {
+                    $this->makeVideoPoster($image, $data, $pathname);
+                    return;
                 }
 
                 // 生成缩略图，svg等格式本身体积足够小且网页原生支持(比生成的png缩略图还小)，不用生成缩略图，直接复制文件
@@ -580,6 +614,50 @@ class ImageService
             } catch (\Throwable $e) {
                 Utils::e($e, '生成缩略图时出现异常');
             }
+        }
+    }
+
+    /**
+     * 为视频截取封面（缩略图）
+     *
+     * @param  Image  $image
+     * @param  mixed  $data  上传的临时文件
+     * @param  string  $pathname  缩略图保存的绝对路径
+     * @return void
+     */
+    public function makeVideoPoster(Image $image, mixed $data, string $pathname): void
+    {
+        try {
+            $source = $data instanceof \Illuminate\Http\UploadedFile ? $data->getPathname() : (string) $data;
+            if (! is_file($source)) {
+                return;
+            }
+
+            // 视频详情（宽高），便于后续使用
+            $ffprobe = trim((string) @shell_exec(
+                'ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=s=x:p=0 '
+                . escapeshellarg($source) . ' 2>/dev/null'
+            ));
+            if (preg_match('/^(\d+)x(\d+)$/', $ffprobe, $m)) {
+                $image->width = (int) $m[1];
+                $image->height = (int) $m[2];
+                $image->save();
+            }
+
+            // 截取第 1 秒的画面作为封面，失败则退回第 0 秒
+            $cmd = 'ffmpeg -y -v error -ss 1 -i ' . escapeshellarg($source)
+                . ' -frames:v 1 -vf ' . escapeshellarg('scale=400:-2') . ' '
+                . escapeshellarg($pathname) . ' 2>&1';
+            @shell_exec($cmd);
+
+            if (! file_exists($pathname) || filesize($pathname) === 0) {
+                $cmd = 'ffmpeg -y -v error -i ' . escapeshellarg($source)
+                    . ' -frames:v 1 -vf ' . escapeshellarg('scale=400:-2') . ' '
+                    . escapeshellarg($pathname) . ' 2>&1';
+                @shell_exec($cmd);
+            }
+        } catch (\Throwable $e) {
+            Utils::e($e, '生成视频封面时出现异常');
         }
     }
 

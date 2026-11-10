@@ -18,7 +18,7 @@ use App\Enums\Watermark\Mode;
 return [
     'app' => [
         ConfigKey::AppName => 'Lsky Pro',
-        ConfigKey::AppVersion => 'V 2.1',
+        ConfigKey::AppVersion => 'V 2.1.1 (video-file)',
         ConfigKey::SiteKeywords => 'Lsky Pro,lsky,兰空图床',
         ConfigKey::SiteDescription => 'Lsky Pro, Your photo album on the cloud.',
         ConfigKey::SiteNotice => '',
@@ -107,6 +107,10 @@ return [
         GroupConfigKey::LimitPerWeek => 600,
         GroupConfigKey::LimitPerMonth => 999,
         GroupConfigKey::AcceptedFileSuffixes => ['jpeg', 'jpg', 'png', 'gif', 'tif', 'bmp', 'ico', 'psd', 'webp', 'svg'],
+        GroupConfigKey::AcceptedVideoSuffixes => ['mp4', 'webm', 'mov', 'm4v', 'ogv', 'mkv', 'avi', 'flv', 'wmv', 'ts', 'mpg', 'mpeg', '3gp'],
+        GroupConfigKey::AcceptedOtherFileSuffixes => ['pdf', 'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'txt', 'md', 'json', 'xml', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'epub', 'apk', 'ipa', 'exe', 'dmg', 'iso', 'torrent', 'mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'opus', 'ttf', 'otf', 'woff', 'woff2'],
+        // 所有支持的后缀（图片 + 视频 + 其他文件），用于路由约束
+        'all_file_suffixes' => ['jpeg', 'jpg', 'png', 'gif', 'tif', 'bmp', 'ico', 'psd', 'webp', 'svg', 'mp4', 'webm', 'mov', 'm4v', 'ogv', 'mkv', 'avi', 'flv', 'wmv', 'ts', 'mpg', 'mpeg', '3gp', 'pdf', 'zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz', 'txt', 'md', 'json', 'xml', 'csv', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'epub', 'apk', 'ipa', 'exe', 'dmg', 'iso', 'torrent', 'mp3', 'flac', 'wav', 'aac', 'ogg', 'm4a', 'opus', 'ttf', 'otf', 'woff', 'woff2'],
         GroupConfigKey::ImageSaveFormat => '',
         GroupConfigKey::ImageSaveQuality => 75,
         GroupConfigKey::PathNamingRule => '{Y}/{m}/{d}',

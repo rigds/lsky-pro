@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Enums\ImagePermission;
+use App\Enums\ImageType;
 use App\Http\Controllers\Controller;
 use App\Models\Image;
 use App\Services\UserService;
@@ -17,8 +18,43 @@ class ImageController extends Controller
 {
     public function index(Request $request): View
     {
+        return $this->listByType($request, ImageType::Image, 'admin.image.index');
+    }
+
+    /**
+     * 视频管理
+     *
+     * @param  Request  $request
+     * @return View
+     */
+    public function videos(Request $request): View
+    {
+        return $this->listByType($request, ImageType::Video, 'admin.image.video');
+    }
+
+    /**
+     * 其他文件管理
+     *
+     * @param  Request  $request
+     * @return View
+     */
+    public function files(Request $request): View
+    {
+        return $this->listByType($request, ImageType::File, 'admin.image.file');
+    }
+
+    /**
+     * 按类型列出文件
+     *
+     * @param  Request  $request
+     * @param  int  $type
+     * @param  string  $view
+     * @return View
+     */
+    private function listByType(Request $request, int $type, string $view): View
+    {
         $keywords = $request->query('keywords');
-        $images = Image::query()->with(['user' => function (BelongsTo $belongsTo) {
+        $images = Image::query()->where('type', $type)->with(['user' => function (BelongsTo $belongsTo) {
             $belongsTo->withSum('images', 'size');
         }, 'album', 'group', 'strategy'])->when($keywords, function (Builder $builder, $keywords) {
             $words = [];
@@ -78,7 +114,7 @@ class ImageController extends Controller
 
         $images->appends(compact('keywords'));
 
-        return view('admin.image.index', compact('images'));
+        return view($view, compact('images'));
     }
 
     public function update(): Response

@@ -105,6 +105,7 @@
                     <p class="text-xs date" title="__human_date__">__date__</p>
                 </div>
             </div>
+            <div class="absolute top-1 left-1 z-[2] flex space-x-1">__type_badge__</div>
             <img alt="__name__" data-original="__url__" src="__thumb_url__" width="__width__" height="__height__">
         </a>
     </script>
@@ -277,6 +278,11 @@
                             .replace(/__width__/g, images[i].width)
                             .replace(/__height__/g, images[i].height)
                             .replace(/__json__/g, JSON.stringify(images[i]).replace(/\$/g, '$$$$'))
+                            .replace(/__type_badge__/g, (function (type, ext) {
+                                if (type === 2) return '<span class="type-badge px-1 py-0 rounded text-white text-xs bg-black/60"><i class="fas fa-video text-[10px]"></i> ' + ext.toUpperCase() + '</span>';
+                                if (type === 3) return '<span class="type-badge px-1 py-0 rounded text-white text-xs bg-blue-500/80"><i class="fas fa-file text-[10px]"></i> ' + ext.toUpperCase() + '</span>';
+                                return '';
+                            })(images[i].type, images[i].extension))
                     }
 
                     $photos.append(html);

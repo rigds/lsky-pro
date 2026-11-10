@@ -38,7 +38,9 @@ class GroupRequest extends FormRequest
             'configs.image_save_format' => '',
             'configs.path_naming_rule' => 'max:400',
             'configs.file_naming_rule' => 'max:400',
-            'configs.accepted_file_suffixes' => 'required|array|in:jpeg,jpg,png,gif,tif,bmp,ico,psd,webp,svg',
+            'configs.accepted_file_suffixes' => 'required|array|min:1|in:jpeg,jpg,png,gif,tif,bmp,ico,psd,webp,svg',
+            'configs.accepted_video_suffixes' => 'array|in:' . implode(',', config('convention.group.accepted_video_suffixes')),
+            'configs.accepted_other_file_suffixes' => 'array|in:' . implode(',', config('convention.group.accepted_other_file_suffixes')),
 
             'configs.is_enable_scan' => 'boolean',
             'configs.scanned_action' => [
@@ -120,7 +122,9 @@ class GroupRequest extends FormRequest
             'configs.file_naming_rule' => '文件命名规则',
             'configs.image_save_quality' => '图片保存质量',
             'configs.image_save_format' => '图片保存格式',
-            'configs.accepted_file_suffixes' => '允许上传的文件后缀',
+            'configs.accepted_file_suffixes' => '允许上传的图片后缀',
+            'configs.accepted_video_suffixes' => '允许上传的视频后缀',
+            'configs.accepted_other_file_suffixes' => '允许上传的其他文件后缀',
 
             'configs.is_enable_scan' => '是否启用图片审核',
             'configs.scanned_action' => '图片审核动作',
